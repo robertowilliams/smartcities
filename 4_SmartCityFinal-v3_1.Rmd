@@ -1,0 +1,392 @@
+---
+title: "Smart City Project - Final"
+Author: Roberto Batista - rbatista7484@floridapoly.edu
+output:
+  html_notebook: default
+---
+
+#### Loading Libraries 
+```{r, warning = FALSE, message=FALSE}
+library(tidyverse)
+library(stats)
+library(mlogit)
+library(DataExplorer)
+library(caret)
+library(ggfortify)
+```
+
+#### Loading the data
+```{r, warning=FALSE, message=FALSE}
+setwd("~/Desktop/SMARTCITIES/FINAL/tncs_congestion_empirical_dataset")
+year2016 <- read_csv("ESTFILE_2016.csv", col_types = "iccfiifdddffddddddddddddddddddd")
+```
+
+#### Exploratory Data Analysis (EDA)
+
+```{r}
+year2016 %>% dim()
+```
+
+Checking data structure
+```{r, eval=TRUE}
+str(year2016)
+```
+
+```{r, eval=TRUE}
+summary(year2016)
+```
+
+```{r, eval=TRUE}
+year2016 %>% 
+  head(3)
+```
+```{r, eval=TRUE}
+plot_missing(year2016)
+```
+
+Histograms to check quantitative variables.
+```{r, eval=TRUE}
+year2016 %>% 
+  plot_histogram()
+```
+
+Bar plots for qualitative variables analysis.
+
+```{r, eval=TRUE}
+plot_bar(year2016)
+```
+
+```{r, eval=TRUE}
+year2016 %>% 
+  count(BASE_INRIX_VOL_PRESIDIO) %>% 
+  mutate(perc = (n/sum(n)))
+```
+
+#### Variables Selection
+
+Let's remove the obvious variables which are not relevant to the model.
+
+Removing variables related to ID's (`X1`, `ID`, `ModifiedTMC`), `YEAR` column, as all the data is related to year 2016, and `BASE_INRIX_VOL_PRESIDIO` which 99.4% of data is `0`.
+```{r}
+subset_var <- year2016 %>% 
+  select(-c(X1, ID, ModifiedTMC, YEAR, BASE_INRIX_VOL_PRESIDIO))
+```
+
+Now checking the statistical relevance of the variables.
+```{r, eval=TRUE}
+test_model <- lm(FF_TIME ~., data = subset_var)
+summary(test_model)
+```
+
+The test_model summary presents 'NA's for PHF variables, indicating high collinearity with the dependent variable. Let's confirm it checking colinearity using alias().
+```{r, eval=TRUE}
+alias(test_model)
+```
+
+The variable `PHF` has high collinearity and will be removed from the model. In addition, the variables `TNC_PUDO` and `TNC_VOL` will be removed due to be not significant. According to the dictionary the variable `SPEED_20TH` is a devivation from the same data as `INRIX_SPEED` is and will also removed.
+
+```{r}
+subset_var <- subset_var %>% 
+  select(-c(PHF, TNC_PUDO, TNC_VOL, SPEED_20TH))
+#dim(subset_var)
+```
+
+```{r, eval=TRUE}
+test_model <- lm(FF_TIME ~., data = subset_var)
+summary(test_model)
+```
+Once removed the variables the variable `PRESIDIO` became also statistical not significant and it will be removed.
+```{r}
+subset_var <- subset_var %>% 
+  select(-PRESIDIO)
+```
+
+```{r, eval=TRUE}
+test_model <- lm(FF_TIME ~., data = subset_var)
+summary(test_model)
+```
+
+Let's change the `AT` categorical variable factor levels for a better understanding of model_analysis summary.
+Check the current levels
+```{r}
+levels(subset_var$AT)
+```
+
+Change the "0.0" level as the first level to change the reference.
+```{r}
+subset_var$AT <- relevel(subset_var$AT, "0.0")
+levels(subset_var$AT)
+```
+
+Let's change the `FT2` categorical variable factor levels for a better understanding of model_analysis summary.
+
+Check the current levels
+```{r}
+levels(subset_var$FT2)
+```
+
+Change the "0.0" level as the first level to change the reference.
+```{r}
+subset_var$FT2 <- relevel(subset_var$FT2, "1")
+levels(subset_var$FT2)
+```
+
+Computing the LR model with the variables of interest.
+```{r, eval=TRUE}
+model_analysis <- lm(FF_TIME ~ . , data = subset_var)
+summary(model_analysis)
+```
+
+```{r, eval=TRUE}
+autoplot(model_analysis)
+```
+
+```{r, eval=TRUE}
+subset_var %>% 
+  ggplot(aes(x = CHAMP_LINK_COUNT, y = FF_TIME))+
+  geom_boxplot()
+```
+
+Removing FF_Time outliers
+```{r}
+subset_var %>% 
+  filter(FF_TIME >1.5) %>% 
+  count()
+```
+
+```{r}
+subset_var <- subset_var %>% 
+  filter(FF_TIME <1.5)
+```
+
+```{r}
+subset_var %>% 
+  dim()
+```
+Removing the outliers .
+```{r}
+subset_var <- subset_var %>%
+  slice(-c(7100, 6969, 2307, 5514, 5914, 7104, 5049, 1310, 3865, 1937, 4772, 4767, 4685,
+           4686, 4094, 5123, 4763, 4101, 4764, 5122, 4105, 4663, 4763, 1869, 4715, 4764,
+           5122, 4105, 4663, 5116, 4760, 4623, 5114, 4621, 4091, 5110, 4073, 4615, 4297,
+           4301, 4750, 5108, 4080, 5105, 4750, 4619, 4089, 4620, 4745, 5105, 4093, 5102,
+           4788, 4604, 5098, 5096, 4743, 4277, 4605, 4738, 5096, 4601, 4734, 5092, 4729,
+           4600, 5090, 4603, 5090, 4780, 6359, 5890, 5721, 5053, 6354, 5886, 5718, 5716,
+           5883, 6350, 5881, 5715, 6347, 5052, 5878, 5713, 6343, 5051, 5875,  571, 6389,
+           5050, 5709, 5872, 6385, 6332, 5870, 5708, 6329, 5868, 5707, 6326, 5866, 5706,
+           5048, 6322, 5863, 5704, 5861, 5703, 6319, 5047, 5701, 5858, 6315, 6312, 5856,
+           5700, 5046, 5853, 5698, 6308, 5697, 5851, 6305, 6302, 5849, 5656, 5045, 6298,
+           5846, 5694, 5693, 5844, 6295, 5692, 5842, 6292, 5691, 5840, 6289, 5044, 2304, 
+           5782, 5313, 5626, 5766, 4444, 6171, 5685, 4367, 6217, 6222, 5861, 5059, 6219,
+           6222, 3228, 5710, 5202, 3715, 5862, 3715, 5012, 5011, 5014, 5012, 4546, 4659,
+           5013, 5011, 4510, 5010))
+```
+
+```{r}
+subset_var <- subset_var %>%
+  slice(-c(5000, 5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009, 5010, 5011, 5012))
+```
+
+```{r, eval=TRUE}
+model_analysis <- lm(FF_TIME ~ . , data = subset_var)
+summary(model_analysis)
+```
+```{r}
+autoplot(model_analysis)
+```
+```{r}
+subset_var %>% 
+  dim()
+```
+
+With the final version of the dataset let's test prediction models.
+---
+_______________________________________________
+
+#### COMPUTING LINEAR REGRESSION PREDICTION
+
+Testing Linear Regression Models
+
+for FF_TIME (free flow travel time) Prediction
+
+Separing the data into training and test set.
+```{r}
+set.seed(2019)
+training_samples <- subset_var$FF_TIME %>% 
+  createDataPartition(p=0.8, list = FALSE)
+train_data <- subset_var[training_samples,  ]
+test_data  <- subset_var[-training_samples, ]
+```
+
+Computing the model with train_data
+```{r}
+train_data %>% 
+  colnames()
+```
+______________________________________________
+Model 1
+```{r}
+model_1 <- lm(FF_TIME ~ TOD + CHAMP_LINK_COUNT + ALPHA + BETA + AT + 
+                FT2 + LANES + DISTANCE + CAPACITY + FFS  + INRIX_SPEED  + 
+                INRIX_TIME + INRIX_VOL + CHAMP_PCE + CHAMP_VOL + AVG_DUR +  
+                AVG_DUR_MAJOR_ARTERIALS + AVG_DUR_MINOR_ARTERIALS
+                , data = train_data)
+summary(model_1)
+```
+Make predictions with test_data
+```{r}
+predictions <- model_1 %>% predict(test_data)
+```
+
+Model performance
+
+Prediction Error - RMSE
+```{r}
+RMSE(predictions, test_data$FF_TIME)
+```
+R-Square
+```{r}
+R2(predictions, test_data$FF_TIME)
+```
+
+```{r}
+autoplot(model_1)
+```
+____________________________________________
+Model 19
+```{r}
+model_19 <- lm(FF_TIME ~ TOD + 
+                CHAMP_LINK_COUNT + 
+                #ALPHA + 
+                #BETA + 
+                AT + 
+                FT2 + 
+                #LANES + 
+                DISTANCE + 
+                CAPACITY + 
+                FFS  + 
+                INRIX_SPEED  + 
+                INRIX_TIME + 
+                INRIX_VOL + 
+                CHAMP_PCE + 
+                CHAMP_VOL + 
+                AVG_DUR +  
+                AVG_DUR_MAJOR_ARTERIALS + 
+                AVG_DUR_MINOR_ARTERIALS
+                , data = train_data)
+summary(model_19)
+predictions <- model_19 %>% predict(test_data)
+```
+Make predictions with test_data
+```{r}
+predictions <- model_19 %>% predict(test_data)
+print("Model performance") 
+print("Prediction Error - RMSE:")
+RMSE(predictions, test_data$FF_TIME)
+print("R-Square:") 
+R2(predictions, test_data$FF_TIME)
+```
+```{r}
+autoplot(model_19)
+```
+____________________________________________
+
+Model 20
+```{r}
+model_20 <- lm(FF_TIME ~ TOD + 
+                CHAMP_LINK_COUNT + 
+                #ALPHA + 
+                #BETA + 
+                AT + 
+                FT2 + 
+                #LANES + 
+                DISTANCE + 
+                CAPACITY + 
+                FFS  + 
+                INRIX_SPEED  + 
+                INRIX_TIME + 
+                INRIX_VOL + 
+                CHAMP_PCE + 
+                CHAMP_VOL #+ 
+                #AVG_DUR +  
+                #AVG_DUR_MAJOR_ARTERIALS + 
+                #AVG_DUR_MINOR_ARTERIALS
+                , data = train_data)
+summary(model_20)
+predictions <- model_20 %>% predict(test_data)
+```
+Make predictions with test_data
+```{r}
+predictions <- model_20 %>% predict(test_data)
+print("Model performance") 
+print("Prediction Error - RMSE:")
+RMSE(predictions, test_data$FF_TIME)
+print("R-Square:") 
+R2(predictions, test_data$FF_TIME)
+```
+
+```{r}
+autoplot(model_20)
+```
+_______________________________________________
+
+Testing the application of log in the predictor variables and the outcome variable, both in train and test datasets.
+```{r}
+#train_data$FF_TIME    <- log(train_data$FF_TIME)
+#test_data$FF_TIME     <- log(test_data$FF_TIME)
+
+#train_data$INRIX_TIME  <- log(train_data$INRIX_TIME)
+#test_data$INRIX_TIME  <- log(test_data$INRIX_TIME)
+
+#train_data$INRIX_SPEED <- log(train_data$INRIX_SPEED)
+#test_data$INRIX_SPEED <- log(test_data$INRIX_SPEED)
+
+train_data$FFS         <- log(train_data$FFS)
+test_data$FFS         <- log(test_data$FFS)
+```
+
+```{r}
+train_data$FFS %>% 
+  plot_histogram()
+```
+Model 19 Log
+```{r}
+model_19_log <- lm(log(FF_TIME) ~ TOD + 
+                CHAMP_LINK_COUNT + 
+                #ALPHA + 
+                #BETA + 
+                AT + 
+                FT2 + 
+                #LANES + 
+                DISTANCE + 
+                CAPACITY + 
+                FFS  + 
+                INRIX_SPEED  + 
+                INRIX_TIME + 
+                INRIX_VOL + 
+                CHAMP_PCE + 
+                CHAMP_VOL + 
+                AVG_DUR +  
+                AVG_DUR_MAJOR_ARTERIALS + 
+                AVG_DUR_MINOR_ARTERIALS
+                , data = train_data)
+#summary(model_19_log)
+predictions <- model_19_log %>% predict(test_data)
+```
+```{r}
+autoplot(model_19_log)
+```
+
+Make predictions with test_data
+```{r}
+predictions <- Model_26_log %>% predict(test_data)
+```
+Model performance
+Prediction Error - RMSE
+```{r}
+RMSE(predictions, test_data$FF_TIME)
+```
+R-Square
+```{r}
+R2(predictions, test_data$FF_TIME)
+```
